@@ -1,0 +1,3 @@
+node_modules/
+dist/
+reports/playwright/minecraft-clone-report.json

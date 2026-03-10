@@ -1,0 +1,14 @@
+
+> minecraft-mobile-clone@1.0.0 test
+> npm run build && playwright test --project=chromium
+
+
+> minecraft-mobile-clone@1.0.0 build
+> rm -rf dist && mkdir -p dist && cp index.html dist/ && cp styles.css dist/ && cp -R js dist/ && cp -R assets dist/ && printf '' > dist/.nojekyll
+
+
+Running 1 test using 1 worker
+
+  ✓  1 [chromium] › tests/minecraft-clone.spec.js:3:1 › load demo and interact (883ms)
+
+  1 passed (2.6s)
