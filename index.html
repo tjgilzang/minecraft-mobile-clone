@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Minecraft Mobile Clone</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hud">
+      <div class="hud-row">
+        <article>
+          <p class="label">STAGE</p>
+          <p id="hud-stage" class="value">01</p>
+        </article>
+        <article>
+          <p class="label">STAMINA</p>
+          <p id="hud-stamina" class="value">100%</p>
+        </article>
+        <article>
+          <p class="label">COORDS</p>
+          <p id="hud-coords" class="value">(0, 0)</p>
+        </article>
+        <article>
+          <p class="label">BLOCKS</p>
+          <p id="hud-blocks" class="value">0</p>
+        </article>
+      </div>
+      <div class="hud-row hud-row--mini">
+        <div class="note">라이트 레벨과 섀도우는 플레이어 주변 타일에 따라 포인트 배경을 켭니다.</div>
+        <div class="note">좌/우 조이스틱, 점프/상호작용/블록 배치 버튼을 터치하여 모바일 감각을 느껴보세요.</div>
+      </div>
+    </header>
+
+    <main class="play-area">
+      <section class="canvas-wrapper">
+        <canvas id="world" width="360" height="360" aria-label="마인크래프트 클론 월드"></canvas>
+        <div class="stage-overlay" id="overlay">스테이지 클리어!</div>
+      </section>
+
+      <section class="control-grid">
+        <div class="joystick" id="joystick">
+          <div class="joy-base"></div>
+          <div class="joy-knob" id="joystick-knob"></div>
+        </div>
+        <div class="button-grid">
+          <button id="jump-btn" class="control-btn">JUMP</button>
+          <button id="interact-btn" class="control-btn">INTERACT</button>
+          <button id="place-btn" class="control-btn">PLACE</button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footnote">
+      <p>키보드: 방향키 / WASD + 스페이스 점프, 엔터로 상호작용</p>
+      <p>터치: 조이스틱과 버튼을 이용해 블록을 부수고 놓으며 점수를 쌓으세요.</p>
+    </footer>
+  </div>
+
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>
