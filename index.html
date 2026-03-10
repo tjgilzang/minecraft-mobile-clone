@@ -30,15 +30,50 @@
           <p id="hud-blocks" class="value">0</p>
         </article>
       </div>
+
+      <div class="hud-meter-row">
+        <article class="hud-meter">
+          <div class="hud-meter__header">
+            <p class="label">LIGHT</p>
+            <p id="hud-light-value" class="hud-meter__value">100%</p>
+          </div>
+          <div class="hud-meter__bar" aria-hidden="true">
+            <span id="hud-light-fill" class="hud-meter__fill"></span>
+          </div>
+        </article>
+        <article class="hud-meter">
+          <div class="hud-meter__header">
+            <p class="label">FOCUS</p>
+            <p id="hud-focus-value" class="hud-meter__value">100%</p>
+          </div>
+          <div class="hud-meter__bar" aria-hidden="true">
+            <span id="hud-focus-fill" class="hud-meter__fill"></span>
+          </div>
+        </article>
+        <article class="hud-meter hud-meter--pulse">
+          <div class="hud-meter__header">
+            <p class="label">PULSE</p>
+            <p id="hud-pulse-value" class="hud-meter__value">L1</p>
+          </div>
+          <div class="hud-meter__bar" aria-hidden="true">
+            <span id="hud-pulse-fill" class="hud-meter__fill"></span>
+          </div>
+        </article>
+      </div>
+
       <div class="hud-row hud-row--mini">
         <div class="note">라이트 레벨과 섀도우는 플레이어 주변 타일에 따라 포인트 배경을 켭니다.</div>
         <div class="note">좌/우 조이스틱, 점프/상호작용/블록 배치 버튼을 터치하여 모바일 감각을 느껴보세요.</div>
       </div>
+      <p class="hud-touch">[터치 제스처 가이드] 조이스틱을 밀면 움직임, 버튼을 빠르게 눌러 단발 액션.</p>
     </header>
 
     <main class="play-area">
       <section class="canvas-wrapper">
         <canvas id="world" width="360" height="360" aria-label="마인크래프트 클론 월드"></canvas>
+        <canvas id="particle-layer" class="particle-layer" width="360" height="360" aria-hidden="true"></canvas>
+        <div class="lightening-grid" aria-hidden="true"></div>
+        <div class="ambient-pulse" aria-hidden="true"></div>
         <div class="stage-overlay" id="overlay">스테이지 클리어!</div>
       </section>
 
@@ -51,6 +86,11 @@
           <button id="jump-btn" class="control-btn">JUMP</button>
           <button id="interact-btn" class="control-btn">INTERACT</button>
           <button id="place-btn" class="control-btn">PLACE</button>
+        </div>
+        <div class="control-guide">
+          <p>점프: 가운데 버튼</p>
+          <p>상호작용: 빠르게 탭</p>
+          <p>블록: 길게 누르고 풀기</p>
         </div>
       </section>
     </main>

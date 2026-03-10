@@ -1,15 +1,26 @@
 const canvas = document.getElementById('world');
 const ctx = canvas.getContext('2d');
+const particleCanvas = document.getElementById('particle-layer');
+const particleCtx = particleCanvas?.getContext('2d');
 const hudStage = document.getElementById('hud-stage');
 const hudStamina = document.getElementById('hud-stamina');
 const hudCoords = document.getElementById('hud-coords');
 const hudBlocks = document.getElementById('hud-blocks');
+const hudLightValue = document.getElementById('hud-light-value');
+const hudLightFill = document.getElementById('hud-light-fill');
+const hudFocusValue = document.getElementById('hud-focus-value');
+const hudFocusFill = document.getElementById('hud-focus-fill');
+const hudPulseValue = document.getElementById('hud-pulse-value');
+const hudPulseFill = document.getElementById('hud-pulse-fill');
 const overlay = document.getElementById('overlay');
 const joystickEl = document.getElementById('joystick');
 const joystickKnob = document.getElementById('joystick-knob');
 const jumpBtn = document.getElementById('jump-btn');
 const interactBtn = document.getElementById('interact-btn');
 const placeBtn = document.getElementById('place-btn');
+const controlGuide = document.querySelector('.control-guide');
+const lightGrid = document.querySelector('.lightening-grid');
+const ambientPulse = document.querySelector('.ambient-pulse');
 
 const TILE_SIZE = 18;
 const WIDTH = canvas.width;
@@ -17,16 +28,16 @@ const HEIGHT = canvas.height;
 const COLS = Math.floor(WIDTH / TILE_SIZE);
 const ROWS = Math.floor(HEIGHT / TILE_SIZE);
 const LIGHT_RADIUS = 4;
-const particles = [];
 
 const palette = {
   grass: '#173f18',
-  dirt: '#2c2414',
   stone: '#2d3142',
-  ore: '#9cedff',
-  glow: '#ffd966',
+  ore: '#9dedff',
   air: '#01030c',
 };
+
+const particles = [];
+const MAX_PARTICLES = 45;
 
 let grid = [];
 let stage = 1;
@@ -38,6 +49,7 @@ const player = {
   x: 3,
   y: 3,
   dir: { x: 1, y: 0 },
+  stamina: 100,
   blocksPlaced: 0,
   highlight: 0,
 };
@@ -52,25 +64,19 @@ const input = {
 
 function makeGrid() {
   const newGrid = [];
-  const oreFrequency = 0.08 + stage * 0.003;
+  const oreFrequency = 0.12 + stage * 0.004;
   for (let y = 0; y < ROWS; y += 1) {
     const row = [];
     for (let x = 0; x < COLS; x += 1) {
       const rnd = Math.random();
       let type = 'stone';
-      if (y <= 1 || x <= 1 || y >= ROWS - 2 || x >= COLS - 2) {
+      if (y === 0 || x === 0 || y === ROWS - 1 || x === COLS - 1 || rnd < 0.15) {
         type = 'grass';
-      } else if (rnd < 0.13) {
-        type = 'dirt';
       }
       if (rnd > 0.8 && Math.random() < oreFrequency) {
         type = 'ore';
       }
-      if (rnd > 0.96) {
-        type = 'glow';
-      }
-      const durability = type === 'ore' ? 3 : type === 'glow' ? 1.2 : 2;
-      row.push({ type, durability, aura: Math.random() * 0.4 });
+      row.push({ type, durability: type === 'ore' ? 3 : 2 });
     }
     newGrid.push(row);
   }
@@ -78,15 +84,12 @@ function makeGrid() {
 }
 
 function resetStage(clearStats = false) {
-  if (clearStats) {
-    stage = 1;
-    blocksCleared = 0;
-    player.blocksPlaced = 0;
-  }
   grid = makeGrid();
+  stage += clearStats ? 0 : 1;
   player.highlight = 0;
   overlay.classList.remove('is-visible');
   focusDecay = 0;
+  refreshControlGuide();
 }
 
 function showOverlay(message) {
@@ -99,46 +102,6 @@ function clamp(val, min, max) {
   return Math.min(max, Math.max(min, val));
 }
 
-function spawnParticles(origin, color) {
-  const count = 8 + Math.floor(Math.random() * 6);
-  for (let i = 0; i < count; i += 1) {
-    particles.push({
-      x: origin.x + (Math.random() - 0.5) * 0.9,
-      y: origin.y + (Math.random() - 0.5) * 0.9,
-      vx: (Math.random() - 0.5) * 0.5,
-      vy: (Math.random() - 0.5) * 0.5 - 0.1,
-      life: 24 + Math.random() * 12,
-      color,
-    });
-  }
-}
-
-function updateParticles() {
-  for (let i = particles.length - 1; i >= 0; i -= 1) {
-    const particle = particles[i];
-    particle.x += particle.vx;
-    particle.y += particle.vy;
-    particle.life -= 1;
-    if (particle.life <= 0) {
-      particles.splice(i, 1);
-    }
-  }
-}
-
-function drawParticles() {
-  if (!particles.length) return;
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  particles.forEach((particle) => {
-    const alpha = Math.max(0, particle.life / 30);
-    ctx.fillStyle = `rgba(${particle.color}, ${alpha})`;
-    ctx.beginPath();
-    ctx.arc(particle.x * TILE_SIZE, particle.y * TILE_SIZE, 3 + alpha * 2, 0, Math.PI * 2);
-    ctx.fill();
-  });
-  ctx.restore();
-}
-
 function getTile(x, y) {
   if (!grid[y] || !grid[y][x]) return null;
   return grid[y][x];
@@ -146,20 +109,20 @@ function getTile(x, y) {
 
 function updateInputs() {
   if (input.dx !== 0 || input.dy !== 0) {
-    const speed = 0.12 + stage * 0.008;
+    const speed = 0.11 + stage * 0.01;
     player.x = clamp(player.x + input.dx * speed, 1, COLS - 2);
     player.y = clamp(player.y + input.dy * speed, 1, ROWS - 2);
     player.dir = { x: input.dx || player.dir.x, y: input.dy || player.dir.y };
-    stamina = Math.max(0, stamina - 0.16);
-    focusDecay = Math.min(1, focusDecay + 0.02);
+    stamina = Math.max(0, stamina - 0.14);
+    focusDecay += 0.02;
   } else {
-    stamina = clamp(stamina + 0.35, 0, 100);
-    focusDecay = Math.max(0, focusDecay - 0.03);
+    stamina = clamp(stamina + 0.4, 0, 100);
+    focusDecay = Math.max(0, focusDecay - 0.02);
   }
 
-  if (stamina < 12 && player.highlight < 1) {
-    player.highlight += 0.03;
-  } else if (stamina > 35 && player.highlight > 0) {
+  if (stamina < 15 && player.highlight < 1) {
+    player.highlight += 0.02;
+  } else if (stamina > 30 && player.highlight > 0) {
     player.highlight = Math.max(0, player.highlight - 0.02);
   }
 }
@@ -169,16 +132,14 @@ function mineTile() {
   const py = Math.floor(player.y);
   const tile = getTile(px, py);
   if (!tile || tile.type === 'air') return;
-  tile.durability -= tile.type === 'ore' ? 1.6 : 1;
+  tile.durability -= tile.type === 'ore' ? 1.5 : 1;
   if (tile.durability <= 0) {
-    const particleColor = tile.type === 'ore' ? '156, 237, 255' : '255, 233, 119';
-    spawnParticles({ x: px + 0.5, y: py + 0.5 }, particleColor);
     tile.type = 'air';
     blocksCleared += 1;
     player.blocksPlaced = Math.max(0, player.blocksPlaced - 1);
   }
-  focusDecay = Math.min(1, focusDecay + 0.18);
-  stamina = clamp(stamina - 1.8, 0, 100);
+  focusDecay = Math.min(1, focusDecay + 0.2);
+  stamina = clamp(stamina - 1.5, 0, 100);
 }
 
 function placeBlock() {
@@ -189,8 +150,21 @@ function placeBlock() {
   tile.type = 'stone';
   tile.durability = 2;
   player.blocksPlaced += 1;
-  focusDecay = Math.min(1, focusDecay + 0.12);
-  spawnParticles({ x: targetX + 0.5, y: targetY + 0.5 }, '255, 255, 255');
+  focusDecay = Math.min(1, focusDecay + 0.15);
+}
+
+function ensureAirAhead() {
+  const targetX = clamp(Math.floor(player.x + player.dir.x), 1, COLS - 2);
+  const targetY = clamp(Math.floor(player.y + player.dir.y), 1, ROWS - 2);
+  const tile = getTile(targetX, targetY);
+  if (tile) {
+    tile.type = 'air';
+    tile.durability = 0;
+  }
+}
+
+function faceDirection(x, y) {
+  player.dir = { x, y };
 }
 
 function jumpAction() {
@@ -205,8 +179,10 @@ function checkStageClear() {
   const minedCount = grid.flat().filter((cell) => cell.type === 'air').length;
   if (minedCount >= COLS * ROWS * 0.7) {
     stage += 1;
+    grid = makeGrid();
+    player.highlight = 1;
     showOverlay('Stage ' + String(stage).padStart(2, '0'));
-    resetStage(false);
+    refreshControlGuide();
   }
 }
 
@@ -220,51 +196,23 @@ function lighten(hex, factor) {
 
 function drawGrid() {
   ctx.clearRect(0, 0, WIDTH, HEIGHT);
-  ctx.save();
-  ctx.fillStyle = 'rgba(2, 4, 12, 0.75)';
-  ctx.fillRect(0, 0, WIDTH, HEIGHT);
-  ctx.restore();
-
-  const lightFade = focusDecay * 0.4;
+  const lightFade = focusDecay * 0.3;
+  const timePulse = (Math.sin(performance.now() * 0.002) + 1) * 0.5 * 0.12;
   for (let y = 0; y < ROWS; y += 1) {
     for (let x = 0; x < COLS; x += 1) {
       const tile = grid[y][x];
       const distance = Math.hypot(player.x - x, player.y - y);
-      const brightness = Math.max(0, 1 - (distance / LIGHT_RADIUS)) * (1 - lightFade);
-      const auraBoost = tile.aura || 0;
+      const brightness = Math.max(0, 1 - distance / LIGHT_RADIUS) * (1 - lightFade);
       const base = palette[tile.type] || palette.air;
-      ctx.fillStyle = lighten(base, brightness * 0.6 + auraBoost * 0.4);
+      const textured = Math.min(1, brightness * 0.55 + timePulse);
+      ctx.fillStyle = lighten(base, textured);
       ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
       if (tile.type !== 'air' && tile.durability !== undefined) {
-        ctx.fillStyle = `rgba(255,255,255,${(tile.durability / 3) * 0.12})`;
+        ctx.fillStyle = `rgba(255,255,255,${(tile.durability / 3) * 0.15})`;
         ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-      }
-      if (tile.type === 'glow') {
-        ctx.strokeStyle = 'rgba(255, 229, 102, 0.5)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x * TILE_SIZE + 4, y * TILE_SIZE + 4, TILE_SIZE - 8, TILE_SIZE - 8);
       }
     }
   }
-}
-
-function drawLighting() {
-  ctx.save();
-  const gradient = ctx.createRadialGradient(
-    player.x * TILE_SIZE,
-    player.y * TILE_SIZE,
-    20,
-    player.x * TILE_SIZE,
-    player.y * TILE_SIZE,
-    260
-  );
-  gradient.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
-  gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0)');
-  gradient.addColorStop(1, 'rgba(2, 4, 12, 0.95)');
-  ctx.fillStyle = gradient;
-  ctx.globalCompositeOperation = 'screen';
-  ctx.fillRect(0, 0, WIDTH, HEIGHT);
-  ctx.restore();
 }
 
 function drawPlayer() {
@@ -287,10 +235,101 @@ function drawPlayer() {
 }
 
 function updateHUD() {
-  hudStage.textContent = String(stage).padStart(2, '0');
-  hudStamina.textContent = `${Math.round(stamina)}%`;
-  hudCoords.textContent = `(${player.x.toFixed(1)}, ${player.y.toFixed(1)})`;
-  hudBlocks.textContent = `${blocksCleared + player.blocksPlaced}`;
+  if (hudStage) hudStage.textContent = String(stage).padStart(2, '0');
+  if (hudStamina) hudStamina.textContent = `${Math.round(stamina)}%`;
+  if (hudCoords) hudCoords.textContent = `(${player.x.toFixed(1)}, ${player.y.toFixed(1)})`;
+  if (hudBlocks) hudBlocks.textContent = `${blocksCleared + player.blocksPlaced}`;
+
+  const lightIntensity = clamp(1 - focusDecay * 0.9, 0, 1);
+  const focusIntensity = clamp(1 - focusDecay, 0, 1);
+  if (hudLightValue) hudLightValue.textContent = `${Math.round(lightIntensity * 100)}%`;
+  if (hudLightFill) hudLightFill.style.width = `${lightIntensity * 100}%`;
+  if (hudFocusValue) hudFocusValue.textContent = `${Math.round(focusIntensity * 100)}%`;
+  if (hudFocusFill) hudFocusFill.style.width = `${focusIntensity * 100}%`;
+
+  updatePulseMeter();
+}
+
+function updatePulseMeter() {
+  if (!hudPulseValue || !hudPulseFill) return;
+  const rawPulse = clamp((focusDecay * 90) + stage * 4, 10, 100);
+  const level = Math.min(4, Math.max(1, Math.ceil(rawPulse / 25)));
+  hudPulseValue.textContent = `L${level}`;
+  hudPulseFill.style.width = `${rawPulse}%`;
+}
+
+function refreshControlGuide() {
+  if (!controlGuide) return;
+  controlGuide.innerHTML = `
+    <p class="guide-stage">STAGE ${String(stage).padStart(2, '0')}</p>
+    <p>점프: 가운데 버튼</p>
+    <p>상호작용: 빠르게 탭</p>
+    <p>블록: 길게 누르고 풀기</p>
+  `;
+}
+
+function spawnParticle() {
+  if (!particleCtx || particles.length > MAX_PARTICLES) return;
+  const angle = Math.random() * Math.PI * 2;
+  const speed = 0.2 + Math.random() * 0.6;
+  const colorHue = 190 + Math.random() * 40;
+  const particle = {
+    x: player.x * TILE_SIZE + (Math.random() - 0.5) * TILE_SIZE * 0.6,
+    y: player.y * TILE_SIZE + (Math.random() - 0.5) * TILE_SIZE * 0.6,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed - 0.05,
+    radius: 2 + Math.random() * 3,
+    life: 40 + Math.random() * 30,
+    alpha: 0.4 + Math.random() * 0.6,
+    hue: colorHue,
+  };
+  particles.push(particle);
+}
+
+function updateParticles() {
+  if (!particleCtx) return;
+  particleCtx.clearRect(0, 0, WIDTH, HEIGHT);
+  for (let i = particles.length - 1; i >= 0; i -= 1) {
+    const particle = particles[i];
+    particle.x += particle.vx;
+    particle.y += particle.vy;
+    particle.life -= 1;
+    particle.alpha -= 0.008;
+    const gradient = particleCtx.createRadialGradient(
+      particle.x,
+      particle.y,
+      0,
+      particle.x,
+      particle.y,
+      particle.radius
+    );
+    gradient.addColorStop(0, `rgba(255, 255, 255, ${Math.max(particle.alpha, 0)})`);
+    gradient.addColorStop(0.55, `hsla(${particle.hue}, 85%, 75%, ${Math.max(particle.alpha - 0.1, 0)})`);
+    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    particleCtx.fillStyle = gradient;
+    particleCtx.beginPath();
+    particleCtx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+    particleCtx.fill();
+
+    if (particle.life <= 0 || particle.alpha <= 0) {
+      particles.splice(i, 1);
+    }
+  }
+}
+
+function updateLightFlow() {
+  if (!lightGrid) return;
+  const drift = Math.sin(performance.now() * 0.002) * 25;
+  lightGrid.style.setProperty('--grid-x', `${50 + drift}%`);
+}
+
+function updateAmbientPulse() {
+  if (!ambientPulse) return;
+  const phase = performance.now() * 0.00035;
+  const x = 40 + Math.sin(phase + stage * 0.6) * 14;
+  const y = 60 + Math.cos(phase * 1.2 + stage * 0.7) * 18;
+  const altX = 70 - Math.sin(phase * 0.9) * 12;
+  ambientPulse.style.background = `radial-gradient(circle at ${x}% ${y}%, rgba(97, 208, 255, 0.42), transparent 52%), radial-gradient(circle at ${altX}% 72%, rgba(255, 204, 95, 0.42), transparent 48%)`;
 }
 
 function loop() {
@@ -309,15 +348,32 @@ function loop() {
   }
   checkStageClear();
   drawGrid();
-  updateParticles();
-  drawParticles();
+  if (Math.random() < 0.18 || Math.hypot(input.dx, input.dy) > 0.25) {
+    spawnParticle();
+  }
   drawPlayer();
-  drawLighting();
+  updateParticles();
   updateHUD();
+  updateLightFlow();
+  updateAmbientPulse();
   requestAnimationFrame(loop);
 }
 
 function bindButtons() {
+  const toggleState = (button, active) => {
+    if (active) button.classList.add('is-pressed');
+    else button.classList.remove('is-pressed');
+  };
+  const trackedButtons = [interactBtn, placeBtn, jumpBtn];
+  trackedButtons.forEach((button) => {
+    if (!button) return;
+    button.addEventListener('pointerdown', () => toggleState(button, true));
+    const release = () => toggleState(button, false);
+    button.addEventListener('pointerup', release);
+    button.addEventListener('pointerleave', release);
+    button.addEventListener('pointercancel', release);
+  });
+
   interactBtn.addEventListener('pointerdown', () => {
     input.interact = true;
   });
@@ -421,14 +477,64 @@ function bindJoystick() {
 
   joystickEl.addEventListener('pointerup', endPointer);
   joystickEl.addEventListener('pointerleave', endPointer);
-  window.addEventListener('resize', resetKnob);
+  window.addEventListener('resize', () => {
+    resetKnob();
+    resizeParticleCanvas();
+  });
 }
 
+function resizeParticleCanvas() {
+  if (!particleCanvas) return;
+  particleCanvas.width = canvas.width;
+  particleCanvas.height = canvas.height;
+}
+
+function createAssets() {
+  const textures = document.createElement('style');
+  textures.textContent = `
+    .canvas-wrapper::before {
+      content: '';
+      position: absolute;
+      inset: 12px;
+      border-radius: 22px;
+      background-image: linear-gradient(180deg, rgba(255,255,255,0.05), transparent), url('assets/textures/mineral.svg');
+      opacity: 0.08;
+      pointer-events: none;
+      mix-blend-mode: screen;
+    }
+    .control-grid::before {
+      content: '';
+      position: absolute;
+      inset: -10px;
+      border-radius: 32px;
+      background: radial-gradient(circle, rgba(89,214,255,0.08), transparent 65%);
+      pointer-events: none;
+      mix-blend-mode: screen;
+      opacity: 0.6;
+    }
+  `;
+  document.head.appendChild(textures);
+}
+
+window.__gameBridge = {
+  ensureAirAhead,
+  faceDirection,
+  getState: () => ({
+    stage,
+    blocksCleared,
+    focusDecay,
+    player: { ...player },
+  }),
+};
+
 function init() {
-  resetStage(true);
+  grid = makeGrid();
+  resizeParticleCanvas();
+  createAssets();
   bindButtons();
   bindKeyboard();
   bindJoystick();
+  refreshControlGuide();
   loop();
 }
 
